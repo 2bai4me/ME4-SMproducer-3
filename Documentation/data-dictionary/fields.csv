@@ -1,0 +1,13 @@
+table,field,type,required,description
+smproducer-projects,id,INTEGER PK,yes,Eindeutige Projekt-ID
+smproducer-projects,title,TEXT,yes,Projekttitel
+smproducer-projects,platform,TEXT,yes,Zielplattform (youtube|tiktok|instagram)
+smproducer-projects,format,TEXT,yes,Videoformat (16:9|9:16|1:1)
+smproducer-projects,status,TEXT,yes,Projektstatus (draft|research|script|render|done)
+smproducer-projects,source_url,TEXT,no,Quell-URL
+smproducer-projects,created_at,DATETIME,yes,Erstellungszeitpunkt
+smproducer-projects,updated_at,DATETIME,yes,Letzte Änderung
+smproducer-templates,id,INTEGER PK,yes,Template-ID
+smproducer-templates,name,TEXT,yes,Template-Name
+smproducer-templates,platform,TEXT,yes,Zielplattform
+smproducer-templates,config_json,TEXT,yes,Template-Konfiguration (JSON)

@@ -1,0 +1,6 @@
+numpy
+pandas
+pyzmq
+edge-tts
+pillow
+opencv-python
