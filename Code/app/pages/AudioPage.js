@@ -170,20 +170,113 @@ export default async function AudioPage(container) {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span> Verarbeite...';
 
+    // ─── Fortschritts-Overlay ────────────────────────────
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:16px;padding:2rem;max-width:520px;width:90%;box-shadow:0 25px 80px rgba(0,0,0,0.4);">
+        <h3 style="margin:0 0 0.25rem;font-size:1.1rem;">🎙 Audio-Verarbeitung</h3>
+        <p style="margin:0 0 1.5rem;font-size:0.8rem;color:#6b7280;">${path.split('/').pop() || path.split('\\').pop()}</p>
+        <div id="progress-steps" style="margin-bottom:1rem;">
+          <div class="progress-step active" data-step="1" style="display:flex;align-items:center;gap:10px;padding:6px 0;color:#0f446b;font-weight:600;">
+            <span style="width:24px;height:24px;border-radius:50%;background:#0f446b;color:#fff;display:flex;align-items:center;justify-content:center;font-size:0.7rem;">1</span>
+            Audio analysieren...
+          </div>
+          <div class="progress-step" data-step="2" style="display:flex;align-items:center;gap:10px;padding:6px 0;color:#9ca3af;">
+            <span style="width:24px;height:24px;border-radius:50%;background:#e5e7eb;color:#9ca3af;display:flex;align-items:center;justify-content:center;font-size:0.7rem;">2</span>
+            Transkription (KI-Spracherkennung)...
+          </div>
+          <div class="progress-step" data-step="3" style="display:flex;align-items:center;gap:10px;padding:6px 0;color:#9ca3af;">
+            <span style="width:24px;height:24px;border-radius:50%;background:#e5e7eb;color:#9ca3af;display:flex;align-items:center;justify-content:center;font-size:0.7rem;">3</span>
+            Sprecher werden getrennt...
+          </div>
+          <div class="progress-step" data-step="4" style="display:flex;align-items:center;gap:10px;padding:6px 0;color:#9ca3af;">
+            <span style="width:24px;height:24px;border-radius:50%;background:#e5e7eb;color:#9ca3af;display:flex;align-items:center;justify-content:center;font-size:0.7rem;">4</span>
+            Ergebnisse werden gespeichert...
+          </div>
+        </div>
+        <div style="background:#f3f4f6;border-radius:8px;height:6px;margin-bottom:0.5rem;">
+          <div id="progress-bar-fill" style="height:100%;background:linear-gradient(90deg,#0f446b,#2563eb);border-radius:8px;width:5%;transition:width 0.5s;"></div>
+        </div>
+        <div id="progress-info" style="font-size:0.75rem;color:#6b7280;text-align:right;">0 MB / --</div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    // Progress-Animation
+    const steps = overlay.querySelectorAll('.progress-step');
+    const bar = overlay.querySelector('#progress-bar-fill');
+    const info = overlay.querySelector('#progress-info');
+    let currentStep = 1;
+    let elapsed = 0;
+
+    function activateStep(n) {
+      steps.forEach(s => {
+        const num = parseInt(s.dataset.step);
+        if (num < n) {
+          s.style.color = '#059669';
+          const circle = s.querySelector('span');
+          circle.style.background = '#059669'; circle.style.color = '#fff'; circle.textContent = '✓';
+        } else if (num === n) {
+          s.style.color = '#0f446b'; s.style.fontWeight = '600';
+          const circle = s.querySelector('span');
+          circle.style.background = '#0f446b'; circle.style.color = '#fff';
+        }
+      });
+    }
+
+    function updateProgress(step, pct, msg) {
+      bar.style.width = (step * 25 - 20 + pct * 5) + '%';
+      info.textContent = msg || `${Math.round(elapsed)}s`;
+    }
+
+    const progressTimer = setInterval(() => {
+      elapsed += 5;
+      const mbEst = (elapsed * 0.3).toFixed(1);
+      if (currentStep === 1) {
+        updateProgress(1, Math.min(elapsed/10, 1), `Analysiere Audio... ${elapsed}s`);
+        if (elapsed >= 5 && currentStep === 1) { currentStep = 2; activateStep(2); }
+      } else if (currentStep === 2) {
+        updateProgress(2, Math.min((elapsed-5)/15, 1), `Transkription läuft... ${mbEst} MB | ${elapsed}s`);
+        if (elapsed >= 20 && currentStep === 2) { currentStep = 3; activateStep(3); }
+      } else if (currentStep === 3) {
+        updateProgress(3, Math.min((elapsed-20)/10, 1), `Sprechertrennung... ${mbEst} MB | ${elapsed}s`);
+        if (elapsed >= 30 && currentStep === 3) { currentStep = 4; activateStep(4); }
+      } else {
+        updateProgress(4, 1, `Speichere Ergebnisse... ${elapsed}s`);
+      }
+    }, 5000);
+
     try {
       const result = await api.uploadAudio(state.activeChannelPrefix, state.activeProjectId, {
         datei_pfad: path,
         sprecher_anzahl: count
       });
+
+      clearInterval(progressTimer);
+      // Alle Steps grün
+      steps.forEach(s => {
+        s.style.color = '#059669'; s.style.fontWeight = '600';
+        const circle = s.querySelector('span');
+        circle.style.background = '#059669'; circle.style.color = '#fff'; circle.textContent = '✓';
+      });
+      bar.style.width = '100%';
+      info.textContent = `✅ Fertig! ${result.transkript?.length || 0} Segmente, ${result.spuren?.length || 0} Spuren`;
+      info.style.color = '#059669';
+
       document.getElementById('audio-status').innerHTML = `
         <div class="badge badge-success">Verarbeitung abgeschlossen</div>
         <p class="text-sm mt-2">Sprecher: ${count} | Transkript-Einträge: ${result.transkript?.length || 0}</p>
       `;
       toast('Audio erfolgreich verarbeitet!', 'success');
 
-      // Reload page
+      // Overlay nach 2s ausblenden
+      setTimeout(() => { overlay.style.opacity = '0'; overlay.style.transition = 'opacity 0.5s'; setTimeout(() => overlay.remove(), 500); }, 2000);
+
       state.activeNav = '3';
     } catch (err) {
+      clearInterval(progressTimer);
+      overlay.remove();
       toast(err.message, 'error');
     }
     btn.disabled = false;

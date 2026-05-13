@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { openGlobalDB, getRootDir, setRootDir, closeAll } from './db/manager.js';
 import channelRoutes from './routes/channels.js';
+import mcpRoutes from './routes/mcp.js';
 import projectRoutes from './routes/projects.js';
 import { LLMClient } from './llm/client.js';
 
@@ -64,9 +65,11 @@ app.get('/api/health', (_req, res) => {
     service: 'smproducer-pipeline',
     version,
     rootDir,
-    channels: globalDB.prepare('SELECT COUNT(*) as c FROM channels').get().c
+    channels: globalDB.prepare('SELECT COUNT(*) as c FROM channels').get()?.c || 0,
   });
 });
+
+app.post('/api/mcp-test2', (_req, res) => res.json({ pong: true }));
 
 // IMP-19: Kriterien-File-Parse
 app.post('/api/kriterien-parse/test', (req, res) => {
@@ -75,6 +78,9 @@ app.post('/api/kriterien-parse/test', (req, res) => {
 app.post('/api/kriterien-parse/:prefix', (req, res) => {
   res.json({ ok: true, prefix: req.params.prefix });
 });
+
+app.use('/api/mcp', mcpRoutes);
+app.get('/api/mcp-test', (_req, res) => res.json({ ok: true }));
 
 app.use('/api/channels', channelRoutes);
 

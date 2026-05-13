@@ -76,6 +76,10 @@ class ServiceRegistry {
 /** Globale Service-Registry */
 const registry = new ServiceRegistry();
 
+// Auto-Registrierung des lokalen MCP-Bridge-Servers
+registry.register('transkription', 'http://localhost:3003');
+registry.register('sprechertrennung', 'http://localhost:3003');
+
 /**
  * MCP-Client für externe KI-Service-Aufrufe.
  */
