@@ -205,11 +205,8 @@ export default async function AudioPage(container) {
     document.body.appendChild(overlay);
 
     // Progress-Animation
-    const steps = overlay.querySelectorAll('.progress-step');
     const bar = overlay.querySelector('#progress-bar-fill');
     const info = overlay.querySelector('#progress-info');
-    let currentStep = 1;
-    let elapsed = 0;
     let aborted = false;
     const abortController = new AbortController();
 
@@ -226,23 +223,23 @@ export default async function AudioPage(container) {
       btn.innerHTML = '🔄 Hochladen & Verarbeiten';
       setTimeout(() => overlay.remove(), 2000);
     };
-      steps.forEach(s => {
-        const num = parseInt(s.dataset.step);
-        if (num < n) {
-          s.style.color = '#059669';
-          const circle = s.querySelector('span');
-          circle.style.background = '#059669'; circle.style.color = '#fff'; circle.textContent = '✓';
-        } else if (num === n) {
-          s.style.color = '#0f446b'; s.style.fontWeight = '600';
-          const circle = s.querySelector('span');
-          circle.style.background = '#0f446b'; circle.style.color = '#fff';
-        }
-      });
-    }
 
     function updateProgress(step, pct, msg) {
       bar.style.width = (step * 25 - 20 + pct * 5) + '%';
       info.textContent = msg || `${Math.round(elapsed)}s`;
+    }
+
+    // setStep für Step-Indikatoren
+    const steps = overlay.querySelectorAll('.progress-step');
+    function setStep(n, title, detail, color = '#0f446b', done = false) {
+      const step = steps[n - 1];
+      if (!step) return;
+      step.style.color = color;
+      if (done) {
+        step.querySelector('span').style.background = '#059669';
+        step.querySelector('span').textContent = '✓';
+      }
+      step.childNodes.forEach(c => { if (c.nodeType === 3) c.textContent = ' ' + title; });
     }
 
     const progressTimer = setInterval(() => {
@@ -276,10 +273,10 @@ export default async function AudioPage(container) {
 
       if (aborted) { overlay.remove(); return; }
 
-      const fa = result.file_analysis;
+      const fa = result.file_analysis || {};
 
       // Schritt 1 ✅ Prüfung abgeschlossen
-      if (fa) {
+      if (fa.original_name) {
         setStep(1, '✅ Prüfung abgeschlossen',
           `${fa.original_name} → ${fa.target_name} · ${fa.size_mb} MB · ${fa.duration_min > 0 ? fa.duration_min + ' min' : '?'} · ${fa.format}`,
           '#059669', true);
