@@ -1,0 +1,41 @@
+# PI-Crew Task-Status – ME4-SMproducer-3
+
+## Modell-Konfiguration (Andy's Vorgabe)
+- Manager: deepseek-v4-thinking (stratege, plant, delegiert)
+- Senior-Entwickler: deepseek-v4-flash (implementiert)
+- Tester/Reviewer: deepseek-v4-flash (via Workflow)
+
+## Aktueller Status
+Rolle: Manager (deepseek-v4-thinking)
+Task:  Sprint 0 – Rahmen
+
+## Letzte Aktion
+[2026-05-07 18:45] FERTIG: Kanal-Import aus Excel implementiert
+
+## Ergebnisse – Stammdaten-Import
+
+### Backend
+- ✅ `xlsx`-Paket installiert (Excel-Parsing)
+- ✅ `channels.js`: POST `/api/channels/import` mit multer (memoryStorage, 10MB Limit)
+- ✅ Spalten flexibel: erkennt prefix/Prefix/PREFIX, title/Title/TITEL, description/Description/BESCHREIBUNG
+- ✅ Fehlerbehandlung: fehlende Prefix/Title → Fehlermeldung, Duplikate → UNIQUE-Error
+- ✅ Bei Erfolg: Ordnerstruktur + channel.db werden automatisch angelegt
+
+### Frontend
+- ✅ `api.js`: `importChannels(file)` mit FormData (kein JSON-Header)
+- ✅ `KanalPage.js`: 📥 Button "Stammdaten importieren (.xlsx)" im Kanal-Tab
+- ✅ Upload via File-Picker, akzeptiert .xlsx/.xls
+- ✅ Toast-Feedback: Anzahl importierte Kanäle + Fehler
+
+### Tests
+- ✅ Excel mit 3 Zeilen → 2 importiert, 1 Fehler (leerer Prefix)
+- ✅ DB-Einträge korrekt, Ordnerstruktur angelegt
+- ✅ Duplikat-Erkennung funktioniert
+- ✅ Cleanup nach Test
+
+## Abgeschlossene Tasks dieser Session
+1. ✅ Kanal-Archivierung (PUT /archive, Button)
+2. ✅ Stammdaten-Import (POST /import, xlsx-Upload)
+
+## Aktuell delegiert an
+Senior-Entwickler (deepseek-v4-flash) – beide Tasks abgeschlossen

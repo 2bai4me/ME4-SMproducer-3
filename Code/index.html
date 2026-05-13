@@ -14,6 +14,18 @@
   </head>
   <body>
     <div id="app"></div>
+    <div id="app-loader" style="position:fixed;inset:0;background:#0a0a0a;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-family:Inter,sans-serif;transition:opacity 0.5s;">
+      <div style="font-size:3rem;animation:pulse 1.2s infinite;">🚀</div>
+      <div style="font-size:1.5rem;font-weight:700;margin-top:1rem;">ME4-SMproducer</div>
+      <div style="font-size:0.9rem;color:#9ca3af;margin-top:0.5rem;">App wird gestartet...</div>
+      <div style="margin-top:1.5rem;width:120px;height:3px;background:#1f2937;border-radius:2px;overflow:hidden;">
+        <div style="height:100%;background:#0f446b;width:30%;animation:loadingBar 1.5s infinite;border-radius:2px;"></div>
+      </div>
+    </div>
     <script type="module" src="/app/main.js"></script>
+    <style>
+      @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.9)} }
+      @keyframes loadingBar { 0%{width:0%;margin-left:0} 50%{width:60%;margin-left:20%} 100%{width:0%;margin-left:100%} }
+    </style>
   </body>
 </html>
