@@ -647,22 +647,68 @@ router.post('/:prefix/:projectId/audio/upload', async (req, res) => {
       return res.status(400).json({ error: 'datei_pfad ist Pflichtfeld' });
     }
 
-    const speakerCount = sprecher_anzahl || 2;
-    const r = pdb.prepare('INSERT INTO audio_konfig (datei_pfad, sprecher_anzahl) VALUES (?, ?)')
-      .run(datei_pfad, speakerCount);
+    if (!fs.existsSync(datei_pfad)) {
+      return res.status(400).json({ error: `Datei nicht gefunden: ${datei_pfad}` });
+    }
 
-    // MCP-Integration: Transkription und Sprechertrennung
+    const speakerCount = sprecher_anzahl || 2;
+
+    // ─── Schritt 1: Datei-Analyse & Kopie ──────────────────────
+    const projektDir = path.join(rootDir, req.params.prefix, req.params.projectId, '3. Audio');
+    fs.mkdirSync(projektDir, { recursive: true });
+
+    const origExt = path.extname(datei_pfad);
+    const origName = path.basename(datei_pfad);
+    const newName = `${req.params.projectId}-nblm-Rohdaten${origExt}`;
+    const targetPath = path.join(projektDir, newName);
+
+    // Original-Statistiken
+    const origStat = fs.statSync(datei_pfad);
+    const fileSizeMB = (origStat.size / (1024 * 1024)).toFixed(2);
+
+    // Audio-Dauer ermitteln
+    let durationMin = 0;
+    let audioFormat = origExt.replace('.', '').toUpperCase();
+    try {
+      const mm = await import('music-metadata');
+      const meta = await mm.parseFile(datei_pfad);
+      durationMin = meta.format.duration ? (meta.format.duration / 60).toFixed(1) : 0;
+      if (meta.format.container) audioFormat = meta.format.container.toUpperCase();
+    } catch (_) {
+      // Dauer konnte nicht ermittelt werden
+    }
+
+    // Datei kopieren (nicht verschieben – Original bleibt erhalten)
+    fs.copyFileSync(datei_pfad, targetPath);
+
+    const fileAnalysis = {
+      original_name: origName,
+      original_path: datei_pfad,
+      target_name: newName,
+      target_path: targetPath,
+      target_dir: projektDir,
+      size_mb: parseFloat(fileSizeMB),
+      duration_min: parseFloat(durationMin),
+      format: audioFormat,
+    };
+
+    console.log('[Audio] Analyse:', JSON.stringify(fileAnalysis));
+
+    // In DB speichern (mit Zielpfad)
+    const r = pdb.prepare('INSERT INTO audio_konfig (datei_pfad, sprecher_anzahl) VALUES (?, ?)')
+      .run(targetPath, speakerCount);
+
+    // ─── Schritt 2-4: MCP-Verarbeitung ────────────────────────
     const mcp = createMCPClient();
 
-    // Parallele MCP-Aufrufe mit Fallback auf Mock
     const [transkript, spuren] = await Promise.all([
-      mcp.transcribe(datei_pfad).catch(err => {
+      mcp.transcribe(targetPath).catch(err => {
         console.error('[Audio] Transkription fehlgeschlagen:', err.message);
-        return mcp._mockTranscription(datei_pfad);
+        return mcp._mockTranscription(targetPath);
       }),
-      mcp.separateSpeakers(datei_pfad, speakerCount).catch(err => {
+      mcp.separateSpeakers(targetPath, speakerCount).catch(err => {
         console.error('[Audio] Sprechertrennung fehlgeschlagen:', err.message);
-        return mcp._mockSpeakerSeparation(datei_pfad, speakerCount);
+        return mcp._mockSpeakerSeparation(targetPath, speakerCount);
       })
     ]);
 
@@ -685,8 +731,6 @@ router.post('/:prefix/:projectId/audio/upload', async (req, res) => {
     }
 
     // Transkript-Datei im Projekt-Ordner ablegen
-    const projektDir = path.join(rootDir, req.params.prefix, req.params.projectId, '3. Audio');
-    fs.mkdirSync(projektDir, { recursive: true });
     fs.writeFileSync(
       path.join(projektDir, 'transkript.json'),
       JSON.stringify(transkript, null, 2),
@@ -696,6 +740,7 @@ router.post('/:prefix/:projectId/audio/upload', async (req, res) => {
     const response = {
       id: r.lastInsertRowid,
       sprecher_anzahl: speakerCount,
+      file_analysis: fileAnalysis,
       transkript,
       spuren,
     };

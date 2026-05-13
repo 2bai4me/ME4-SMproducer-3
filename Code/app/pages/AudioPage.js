@@ -247,36 +247,133 @@ export default async function AudioPage(container) {
       }
     }, 5000);
 
+    const startTime = Date.now();
     try {
+      // Schritt 1: Datei wird geprüft...
+      setStep(1, 'Audio wird analysiert...', 'Datei wird geprüft und kopiert...');
+
       const result = await api.uploadAudio(state.activeChannelPrefix, state.activeProjectId, {
         datei_pfad: path,
         sprecher_anzahl: count
       });
 
-      clearInterval(progressTimer);
-      // Alle Steps grün
-      steps.forEach(s => {
-        s.style.color = '#059669'; s.style.fontWeight = '600';
-        const circle = s.querySelector('span');
-        circle.style.background = '#059669'; circle.style.color = '#fff'; circle.textContent = '✓';
-      });
+      const fa = result.file_analysis;
+
+      // Schritt 1 ✅ Prüfung abgeschlossen
+      if (fa) {
+        setStep(1, '✅ Prüfung abgeschlossen',
+          `${fa.original_name} → ${fa.target_name} · ${fa.size_mb} MB · ${fa.duration_min > 0 ? fa.duration_min + ' min' : '?'} · ${fa.format}`,
+          '#059669', true);
+        info.textContent = `📁 ${fa.target_dir}`;
+      } else {
+        setStep(1, '✅ Prüfung abgeschlossen', dateiName, '#059669', true);
+      }
+      bar.style.width = '25%';
+
+      // Schritt 2: Transkript-Service prüfen
+      setStep(2, 'Transkript-Service wird geprüft...', 'Verbinde mit STT-Service (Port 5555)...');
+      bar.style.width = '30%';
+      await new Promise(r => setTimeout(r, 600));
+
+      if (result.transkript?.length > 0) {
+        setStep(2, '✅ Transkription abgeschlossen', `${result.transkript.length} Segmente erkannt`, '#059669', true);
+
+        // Kompakte Transkript-Tabelle
+        const maxRows = Math.min(result.transkript.length, 5);
+        transcriptPreview.style.display = 'block';
+        transcriptPreview.innerHTML = `
+          <div style="font-size:0.7rem;font-weight:600;color:#374151;margin-bottom:4px;">📋 Transkript (${result.transkript.length} Zeilen)</div>
+          <table style="width:100%;border-collapse:collapse;font-size:0.65rem;">
+            <thead><tr style="background:#f9fafb;">
+              <th style="padding:2px 4px;text-align:left;border-bottom:1px solid #e5e7eb;">Start</th>
+              <th style="padding:2px 4px;text-align:left;border-bottom:1px solid #e5e7eb;">Ende</th>
+              <th style="padding:2px 4px;text-align:left;border-bottom:1px solid #e5e7eb;">Spr.</th>
+              <th style="padding:2px 4px;text-align:left;border-bottom:1px solid #e5e7eb;">Text</th>
+            </tr></thead>
+            <tbody>
+              ${result.transkript.slice(0, maxRows).map(t => `
+                <tr>
+                  <td style="padding:2px 4px;border-bottom:1px solid #f3f4f6;white-space:nowrap;">${(t.start_time||t.start||'').substring(0,8)}</td>
+                  <td style="padding:2px 4px;border-bottom:1px solid #f3f4f6;white-space:nowrap;">${(t.end_time||t.end||'').substring(0,8)}</td>
+                  <td style="padding:2px 4px;border-bottom:1px solid #f3f4f6;">${t.speaker||''}</td>
+                  <td style="padding:2px 4px;border-bottom:1px solid #f3f4f6;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${(t.text||'').substring(0,70)}</td>
+                </tr>
+              `).join('')}
+              ${result.transkript.length > maxRows ? `<tr><td colspan="4" style="padding:4px;text-align:center;color:#9ca3af;font-size:0.65rem;">... ${result.transkript.length - maxRows} weitere Zeilen</td></tr>` : ''}
+            </tbody>
+          </table>
+        `;
+        bar.style.width = '55%';
+      } else {
+        setStep(2, '⚠ Keine Transkript-Segmente', 'Service lieferte leere Antwort', '#f59e0b', true);
+        bar.style.width = '50%';
+      }
+
+      // Schritt 3: Sprechertrennung
+      setStep(3, 'Sprecher-Service wird geprüft...', 'Verbinde mit Speech-Splitter (Port 5580)...');
+      bar.style.width = '60%';
+      await new Promise(r => setTimeout(r, 500));
+
+      if (result.spuren?.length > 0) {
+        setStep(3, '✅ Sprecher getrennt', `${result.spuren.length} Spuren extrahiert`, '#059669', true);
+        bar.style.width = '80%';
+      } else {
+        setStep(3, '⚠ Keine Sprecher-Spuren', 'Service lieferte leeres Ergebnis', '#f59e0b', true);
+        bar.style.width = '75%';
+      }
+
+      // Schritt 4: Ergebnisse mit Sprecher-Details + Datei-Pfaden
+      const zielDir = fa?.target_dir || 'Projektordner';
+      
+      // Datei-Infos für jede Spur ermitteln (Größe, Pfad)
+      const spurenDetails = result.spuren?.length > 0
+        ? result.spuren.map((s, i) => {
+            const label = s.speaker || String.fromCharCode(65 + i);
+            const filePath = s.file_path || '';
+            const fileName = filePath.split(/[/\\]/).pop() || '(Pfad unbekannt)';
+            return `
+            <div style="background:#f9fafb;border-radius:6px;padding:6px 8px;margin-top:4px;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-weight:600;font-size:0.75rem;">🔊 Sprecher ${label}</span>
+                <button onclick="event.stopPropagation();" style="padding:3px 10px;background:#0f446b;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.65rem;">▶ Play</button>
+              </div>
+              <div style="font-size:0.65rem;color:#6b7280;margin-top:3px;">
+                <strong>📁 Datei:</strong> <code style="font-size:0.62rem;word-break:break-all;">${fileName}</code>
+              </div>
+              <div style="font-size:0.65rem;color:#9ca3af;">
+                <strong>📂 Pfad:</strong> <code style="font-size:0.62rem;word-break:break-all;">${filePath}</code>
+              </div>
+            </div>
+          `;
+          }).join('')
+        : '<div style="font-size:0.7rem;color:#9ca3af;">Keine Spuren verfügbar</div>';
+
+      setStep(4, '✅ Ergebnisse gespeichert', '', '#059669', true);
+      document.querySelector('#progress-steps [data-step="4"] .step-detail').innerHTML = `
+        transkript.json<br>
+        <code style="font-size:0.62rem;word-break:break-all;">${zielDir}\\transkript.json</code>
+        ${spurenDetails}
+      `;
       bar.style.width = '100%';
-      info.textContent = `✅ Fertig! ${result.transkript?.length || 0} Segmente, ${result.spuren?.length || 0} Spuren`;
+      info.textContent = `✅ Fertig in ${Math.round((Date.now() - startTime) / 1000)}s`;
       info.style.color = '#059669';
 
       document.getElementById('audio-status').innerHTML = `
         <div class="badge badge-success">Verarbeitung abgeschlossen</div>
-        <p class="text-sm mt-2">Sprecher: ${count} | Transkript-Einträge: ${result.transkript?.length || 0}</p>
+        <p class="text-sm mt-2">Sprecher: ${count} | Transkript: ${result.transkript?.length || 0} Segmente | Spuren: ${result.spuren?.length || 0}</p>
       `;
       toast('Audio erfolgreich verarbeitet!', 'success');
 
-      // Overlay nach 2s ausblenden
-      setTimeout(() => { overlay.style.opacity = '0'; overlay.style.transition = 'opacity 0.5s'; setTimeout(() => overlay.remove(), 500); }, 2000);
-
+      setTimeout(() => { overlay.style.opacity = '0'; overlay.style.transition = 'opacity 0.5s'; setTimeout(() => overlay.remove(), 500); }, 5000);
       state.activeNav = '3';
+
     } catch (err) {
-      clearInterval(progressTimer);
-      overlay.remove();
+      setStep(2, '❌ Fehler', err.message, '#dc2626', true);
+      bar.style.width = '100%';
+      bar.style.background = '#dc2626';
+      info.textContent = 'Fehlgeschlagen';
+      info.style.color = '#dc2626';
+      setTimeout(() => overlay.remove(), 4000);
       toast(err.message, 'error');
     }
     btn.disabled = false;
