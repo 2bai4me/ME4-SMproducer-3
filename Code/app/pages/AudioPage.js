@@ -199,6 +199,7 @@ export default async function AudioPage(container) {
           <div id="progress-bar-fill" style="height:100%;background:linear-gradient(90deg,#0f446b,#2563eb);border-radius:8px;width:5%;transition:width 0.5s;"></div>
         </div>
         <div id="progress-info" style="font-size:0.75rem;color:#6b7280;text-align:right;">0 MB / --</div>
+        <button id="btn-cancel-process" style="margin-top:1rem;width:100%;padding:10px;background:#dc2626;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.85rem;">❌ Abbrechen</button>
       </div>
     `;
     document.body.appendChild(overlay);
@@ -209,8 +210,22 @@ export default async function AudioPage(container) {
     const info = overlay.querySelector('#progress-info');
     let currentStep = 1;
     let elapsed = 0;
+    let aborted = false;
+    const abortController = new AbortController();
 
-    function activateStep(n) {
+    // Abbrechen-Button
+    document.getElementById('btn-cancel-process').onclick = () => {
+      aborted = true;
+      abortController.abort();
+      info.textContent = '⚠ Abgebrochen';
+      info.style.color = '#f59e0b';
+      bar.style.background = '#f59e0b';
+      bar.style.width = '100%';
+      toast('Verarbeitung abgebrochen', 'warning');
+      btn.disabled = false;
+      btn.innerHTML = '🔄 Hochladen & Verarbeiten';
+      setTimeout(() => overlay.remove(), 2000);
+    };
       steps.forEach(s => {
         const num = parseInt(s.dataset.step);
         if (num < n) {
@@ -249,6 +264,8 @@ export default async function AudioPage(container) {
 
     const startTime = Date.now();
     try {
+      // Prüfen ob abgebrochen
+      if (aborted) { overlay.remove(); return; }
       // Schritt 1: Datei wird geprüft...
       setStep(1, 'Audio wird analysiert...', 'Datei wird geprüft und kopiert...');
 
@@ -256,6 +273,8 @@ export default async function AudioPage(container) {
         datei_pfad: path,
         sprecher_anzahl: count
       });
+
+      if (aborted) { overlay.remove(); return; }
 
       const fa = result.file_analysis;
 

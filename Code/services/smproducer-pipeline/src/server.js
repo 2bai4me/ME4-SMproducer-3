@@ -16,6 +16,7 @@ import { openGlobalDB, getRootDir, setRootDir, closeAll } from './db/manager.js'
 import channelRoutes from './routes/channels.js';
 import mcpRoutes from './routes/mcp.js';
 import projectRoutes from './routes/projects.js';
+import audioStreamHandler from './routes/audio-stream.js';
 import { LLMClient } from './llm/client.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -195,6 +196,9 @@ app.post('/api/projects/:prefix/:projectId/audio/generate-prompt', async (req, r
 });
 
 app.use('/api/projects', projectRoutes);
+
+// SSE Audio-Streaming (Live-Log)
+app.post('/api/projects/:prefix/:projectId/audio/process-stream', audioStreamHandler);
 
 // Direct workaround for Express 5 routing bug (projects POST routes hang)
 app.post('/api/analyse-preview/:prefix/:projectId', async (req, res) => {
